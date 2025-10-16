@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstring>
+bool isLE = false;
 uint32_t evp1Address = 0;
 #pragma pack(push, 1)
 struct BDLHeader {
@@ -282,9 +283,9 @@ uint32_t ConvertINF1(std::ifstream& in, std::ofstream& out) {
 
     out.write(reinterpret_cast<char*>(&inf1), sizeof(inf1));
 
-
+if (isLE == false)
+{
     size_t nodeCount = (inf1.size - sizeof(INF1)) / sizeof(INF1Node);
-    
     for (size_t i = 0; i < nodeCount; i++) {
         
         INF1Node node;
@@ -293,6 +294,19 @@ uint32_t ConvertINF1(std::ifstream& in, std::ofstream& out) {
         node.unknown = Swap16(node.unknown);
         out.write(reinterpret_cast<char*>(&node), sizeof(node));
     }
+}
+else
+{
+    size_t nodeCount = (Swap32(inf1.size) - sizeof(INF1)) / sizeof(INF1Node);
+    for (size_t i = 0; i < nodeCount; i++) {
+        
+        INF1Node node;
+        in.read(reinterpret_cast<char*>(&node), sizeof(node));
+        node.type = Swap16(node.type);
+        node.unknown = Swap16(node.unknown);
+        out.write(reinterpret_cast<char*>(&node), sizeof(node));
+    }
+}
     return 0;
 }
 
@@ -362,6 +376,25 @@ out.seekp(start, std::ios::beg);
     }
 }
 
+void CopyColorDataLE(std::ifstream& in, std::ofstream& out, uint32_t base, uint32_t sectionEnd, const uint32_t colOffsets[2]) {
+    for (int i = 0; i < 2; ++i) {
+        if (Swap32(colOffsets[i]) != 0) {
+            uint32_t start = base + Swap32(colOffsets[i]);
+
+out.seekp(start, std::ios::beg);
+
+
+            in.seekg(start, std::ios::beg);
+            uint32_t end = sectionEnd;
+            std::vector<char> buffer(sectionEnd - start);
+            in.read(buffer.data(), buffer.size());
+            out.write(buffer.data(), buffer.size());
+            
+        }
+    }
+}
+
+
 void ConvertTexDataSections(std::ifstream& in, std::ofstream& out, const VTX1Header& vtx1, uint32_t base, uint32_t sectionEnd) {
     for (int i = 0; i < 8; ++i) {
         if (vtx1.texDataOffset[i] == 0)
@@ -373,6 +406,33 @@ void ConvertTexDataSections(std::ifstream& in, std::ofstream& out, const VTX1Hea
         for (int j = i + 1; j < 8; ++j) {
             if (vtx1.texDataOffset[j] != 0) {
                 stop = std::min(stop, base + vtx1.texDataOffset[j]);
+                break;
+            }
+        }
+
+        for (uint32_t pos = start; pos < stop; pos += 2) {
+            in.seekg(pos, std::ios::beg);
+            uint16_t val;
+            in.read(reinterpret_cast<char*>(&val), 2);
+            uint16_t swapped = Swap16(val);
+
+            out.seekp(pos, std::ios::beg);
+            out.write(reinterpret_cast<char*>(&swapped), 2);
+        }
+    }
+}
+
+void ConvertTexDataSectionsLE(std::ifstream& in, std::ofstream& out, const VTX1Header& vtx1, uint32_t base, uint32_t sectionEnd) {
+    for (int i = 0; i < 8; ++i) {
+        if (Swap32(vtx1.texDataOffset[i]) == 0)
+            continue;
+
+        uint32_t start = base + Swap32(vtx1.texDataOffset[i]);
+
+        uint32_t stop = sectionEnd;
+        for (int j = i + 1; j < 8; ++j) {
+            if (Swap32(vtx1.texDataOffset[j]) != 0) {
+                stop = std::min(stop, base + Swap32(vtx1.texDataOffset[j]));
                 break;
             }
         }
@@ -404,9 +464,9 @@ void ConvertVTX1(std::ifstream& in, std::ofstream& out) {
     vtx1.colDataOffset[1]   = Swap32(vtx1.colDataOffset[1]);
     for (int i = 0; i < 8; ++i)
         vtx1.texDataOffset[i] = Swap32(vtx1.texDataOffset[i]);
-    
-
     out.write(reinterpret_cast<char*>(&vtx1), sizeof(vtx1));
+    if (isLE == false)
+    {
     uint32_t sectionEnd = base + vtx1.size;
 
     ConvertAttributeTable(in, out, base + vtx1.vertexFormatOffset, base + vtx1.posDataOffset);
@@ -427,7 +487,30 @@ void ConvertVTX1(std::ifstream& in, std::ofstream& out) {
 CopyColorData(in, out, base, sectionEnd, vtx1.colDataOffset);
 
 ConvertTexDataSections(in, out, vtx1, base, sectionEnd);
+    }
+    else
+    {
+    uint32_t sectionEnd = base + Swap32(vtx1.size);
 
+    ConvertAttributeTable(in, out, base + Swap32(vtx1.vertexFormatOffset), base + Swap32(vtx1.posDataOffset));
+
+    uint32_t colStart = sectionEnd;
+    for (int i = 0; i < 2; ++i)
+        if (Swap32(vtx1.colDataOffset[i]) != 0)
+            colStart = std::min(colStart, base + Swap32(vtx1.colDataOffset[i]));
+
+    std::vector<uint32_t> vertexOffsets = {
+        Swap32(vtx1.posDataOffset), Swap32(vtx1.nrmDataOffset), Swap32(vtx1.nbtDataOffset),
+        Swap32(vtx1.texDataOffset[0]), Swap32(vtx1.texDataOffset[1]), Swap32(vtx1.texDataOffset[2]),
+        Swap32(vtx1.texDataOffset[3]), Swap32(vtx1.texDataOffset[4]), Swap32(vtx1.texDataOffset[5]),
+        Swap32(vtx1.texDataOffset[6]), Swap32(vtx1.texDataOffset[7])
+    };
+    ConvertVertexData(in, out, vertexOffsets, base, colStart);
+
+CopyColorDataLE(in, out, base, sectionEnd,vtx1.colDataOffset);
+
+ConvertTexDataSectionsLE(in, out, vtx1, base, sectionEnd);
+    }
 
 }
 
@@ -467,6 +550,8 @@ void ConvertEVP1(std::ifstream& in, std::ofstream& out) {
     header.weightTableOffset = Swap32(header.weightTableOffset);
     header.inverseBindOffset = Swap32(header.inverseBindOffset);
     out.write(reinterpret_cast<char*>(&header), sizeof(header));
+    if(isLE==false)
+    {
 ConvertEVP1JointCountTable(in, out, base + header.jointCountOffset, base + header.indexTableOffset);
 
 ConvertEVP1JointCountTable(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
@@ -474,6 +559,18 @@ ConvertEVP1JointCountTable(in, out, base + header.indexTableOffset, header.weigh
 ConvertEVP1WeightTable(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
 
 ConvertEVP1WeightTable(in, out, header.inverseBindOffset + base,base + header.size);
+    }
+    else
+    {
+        ConvertEVP1JointCountTable(in, out, base + Swap32(header.jointCountOffset), base + Swap32(header.indexTableOffset));
+
+ConvertEVP1JointCountTable(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
+
+ConvertEVP1WeightTable(in, out, Swap32(header.weightTableOffset) + base,Swap32(header.inverseBindOffset) + base);
+
+ConvertEVP1WeightTable(in, out, Swap32(header.inverseBindOffset) + base,base + Swap32(header.size));
+        
+    }
 }
 
 void CopyDRW1DataArray(std::ifstream& in, std::ofstream& out, uint32_t start, uint32_t stop) {
@@ -502,7 +599,8 @@ header.matrixTypeArrayOffset = Swap32(header.matrixTypeArrayOffset);
 header.dataArrayOffset        = Swap32(header.dataArrayOffset);
 
 out.write(reinterpret_cast<char*>(&header), sizeof(header));
-
+if (isLE == false)
+{
 in.seekg(base + header.matrixTypeArrayOffset, std::ios::beg);
 std::vector<char> types(header.elementCount);
 in.read(types.data(), types.size());
@@ -510,7 +608,17 @@ out.seekp(base + header.matrixTypeArrayOffset, std::ios::beg);
 out.write(types.data(), types.size());
 
 CopyDRW1DataArray(in, out, base + header.dataArrayOffset, base + header.size);
+}
+else
+{
+    in.seekg(base + Swap32(header.matrixTypeArrayOffset), std::ios::beg);
+std::vector<char> types(Swap16(header.elementCount));
+in.read(types.data(), types.size());
+out.seekp(base + Swap32(header.matrixTypeArrayOffset), std::ios::beg);
+out.write(types.data(), types.size());
 
+CopyDRW1DataArray(in, out, base + Swap32(header.dataArrayOffset), base + Swap32(header.size));
+}
 }
 
 void ConvertJNT1JointData(std::ifstream& in, std::ofstream& out, uint32_t start, uint16_t jointCount) {
@@ -591,6 +699,8 @@ void ConvertJNT1(std::ifstream& in, std::ofstream& out) {
 
     out.write(reinterpret_cast<char*>(&header), sizeof(header));
 
+    if (isLE == false)
+    {
     ConvertJNT1JointData(in, out, base + header.transformTableOffset, header.jointCount);
     ConvertJNT1RemapTable(in, out, base + header.remapTableOffset, base + header.size); 
     in.seekg(base + header.nameTableOffset + 6, std::ios::beg);
@@ -599,6 +709,17 @@ void ConvertJNT1(std::ifstream& in, std::ofstream& out) {
     offset = Swap16(offset);
     uint32_t stringTableStart = base + header.nameTableOffset + offset;
     CopyJNT1StringTable(in, out, stringTableStart, base + header.size);
+    }
+    else
+    {
+        ConvertJNT1JointData(in, out, base + Swap32(header.transformTableOffset), Swap16(header.jointCount));
+    ConvertJNT1RemapTable(in, out, base + Swap32(header.remapTableOffset), base + Swap32(header.size)); 
+    in.seekg(base + Swap32(header.nameTableOffset) + 6, std::ios::beg);
+    uint16_t offset;
+    in.read(reinterpret_cast<char*>(&offset), 2);
+    uint32_t stringTableStart = base + Swap32(header.nameTableOffset) + offset;
+    CopyJNT1StringTable(in, out, stringTableStart, base + Swap32(header.size));
+    }
 }
 void ConvertRemapTable(std::ifstream& in, std::ofstream& out, uint32_t offset, uint32_t endOffset) {
     uint32_t count = (endOffset - offset) / 2;
@@ -699,7 +820,8 @@ void ConvertSHP1(std::ifstream& in, std::ofstream& out) {
     header.matrixGroupTableOffset = Swap32(header.matrixGroupTableOffset);
 
     out.write(reinterpret_cast<char*>(&header), sizeof(header));
-
+    if (isLE == false)
+    {
     out.seekp(base + header.shapeDataOffset);
     ConvertShapeData(in, out, base + header.shapeDataOffset, header.sectionCount);
 
@@ -711,6 +833,20 @@ void ConvertSHP1(std::ifstream& in, std::ofstream& out) {
     CopyRawBlock(in, out, base + header.primitiveDataOffset, base + header.matrixDataOffset);
     ConvertMatrixData(in, out, base + header.matrixDataOffset, base + header.matrixGroupTableOffset);
     ConvertRaw32Block(in, out, base + header.matrixGroupTableOffset, base + header.chunkSize);
+    }
+    else
+    {
+    out.seekp(base + Swap32(header.shapeDataOffset));
+    ConvertShapeData(in, out, base + Swap32(header.shapeDataOffset), Swap16(header.sectionCount));
+
+    out.seekp(base + Swap32(header.remapTableOffset));
+    ConvertRemapTable(in, out, base + Swap32(header.remapTableOffset), base + Swap32(header.attributeTableOffset));
+    ConvertRaw32Block(in, out, base + Swap32(header.attributeTableOffset), base + Swap32(header.matrixTableOffset));
+    ConvertRaw16Block(in, out, base + Swap32(header.matrixTableOffset), base + Swap32(header.primitiveDataOffset));
+    CopyRawBlock(in, out, base + Swap32(header.primitiveDataOffset), base + Swap32(header.matrixDataOffset));
+    ConvertMatrixData(in, out, base + Swap32(header.matrixDataOffset), base + Swap32(header.matrixGroupTableOffset));
+    ConvertRaw32Block(in, out, base + Swap32(header.matrixGroupTableOffset), base + Swap32(header.chunkSize));
+    }
 }
 
 void ConvertMaterialEntries(std::ifstream& in, std::ofstream& out, uint32_t offset, uint16_t count) {
@@ -770,6 +906,32 @@ void ConvertMaterialEntries2(std::ifstream& in, std::ofstream& out, uint32_t off
         out.write(reinterpret_cast<char*>(raw), 0x138);
     }
 }
+void ConvertMaterialEntries4(std::ifstream& in, std::ofstream& out, uint32_t offset, uint16_t count) {
+    in.seekg(offset);
+    out.seekp(offset);
+
+    for (uint16_t i = 0; i < count; ++i) {
+        uint8_t raw[0x138];
+        in.read(reinterpret_cast<char*>(raw), 0x8);
+
+        const uint32_t swapOffsets[] = {
+            0x00
+        };
+
+        const uint32_t swapCounts[] = {
+            1
+        };
+
+        for (size_t j = 0; j < std::size(swapOffsets); ++j) {
+            uint32_t* ptr = reinterpret_cast<uint32_t*>(&raw[swapOffsets[j]]);
+            for (uint32_t k = 0; k < swapCounts[j]; ++k) {
+                ptr[k] = Swap32(ptr[k]);
+            }
+        }
+
+        out.write(reinterpret_cast<char*>(raw), 0x138);
+    }
+}
 
 void ConvertMaterialEntries3(std::ifstream& in, std::ofstream& out, uint32_t start, uint32_t stop) {
 for (uint32_t pos = start; pos < stop; pos += 0x64) {
@@ -806,11 +968,14 @@ void ConvertMAT3Header(MAT3Header& header) {
 }
 
 void ConvertMAT3(std::ifstream& in, std::ofstream& out) {
+    
     uint32_t base = static_cast<uint32_t>(in.tellg());
 MAT3Header header;
 in.read(reinterpret_cast<char*>(&header), sizeof(header));
 ConvertMAT3Header(header);
 out.write(reinterpret_cast<char*>(&header), sizeof(header));
+if (isLE == false)
+{
     ConvertMaterialEntries(in, out, base + header.materialEntryOffset, header.materialCount);
     ConvertRaw16Block(in, out, base + header.remapTableOffset, base + header.stringTableOffset);
     in.seekg(base + header.stringTableOffset + 6, std::ios::beg);
@@ -821,14 +986,36 @@ out.write(reinterpret_cast<char*>(&header), sizeof(header));
     ConvertRaw16Block(in, out, base + header.stringTableOffset, stringTableStart);
     CopyRawBlock(in, out, stringTableStart, base +header.indirectInfoOffset);
     ConvertMaterialEntries2(in, out, base +header.indirectInfoOffset, header.materialCount);
-    ConvertRaw32Block(in, out, base +header.cullModeOffset, in.tellg());
-    CopyRawBlock(in, out,in.tellg(), base +header.texMatrixOffset);
+    ConvertMaterialEntries4(in, out, base +header.cullModeOffset,header.materialCount);
+    CopyRawBlock(in, out,base + header.materialColorOffset, base +header.texMatrixOffset);
     ConvertMaterialEntries3(in, out, base +header.texMatrixOffset,base + header.textureRemapTableOffset);
     ConvertRaw16Block(in, out,base + header.textureRemapTableOffset, base + header.tevOrderInfoOffset);
     CopyRawBlock(in, out,base + header.tevOrderInfoOffset, base + header.tevColorOffset);
     ConvertRaw16Block(in, out,base + header.tevColorOffset, base + header.numTevStagesOffset);
     CopyRawBlock(in, out,base + header.numTevStagesOffset, base + header.nbtScaleOffset + 4);
     ConvertRaw32Block(in, out,base + header.nbtScaleOffset + 4,base +header.sectionSize);
+}
+else
+{
+        ConvertMaterialEntries(in, out, base + Swap32(header.materialEntryOffset), Swap16(header.materialCount));
+    ConvertRaw16Block(in, out, base + Swap32(header.remapTableOffset), base + Swap32(header.stringTableOffset));
+    in.seekg(base + Swap32(header.stringTableOffset) + 6, std::ios::beg);
+    uint16_t offset;
+    
+    in.read(reinterpret_cast<char*>(&offset), 2);
+    uint32_t stringTableStart = base + Swap32(header.stringTableOffset) + offset;
+    ConvertRaw16Block(in, out, base + Swap32(header.stringTableOffset), stringTableStart);
+    CopyRawBlock(in, out, stringTableStart, base +Swap32(header.indirectInfoOffset));
+    ConvertMaterialEntries2(in, out, base +Swap32(header.indirectInfoOffset), Swap16(header.materialCount));
+    ConvertMaterialEntries4(in, out, base +Swap32(header.cullModeOffset),Swap16(header.materialCount));
+    CopyRawBlock(in, out,base + Swap32(header.materialColorOffset), base +Swap32(header.texMatrixOffset));
+    ConvertMaterialEntries3(in, out, base +Swap32(header.texMatrixOffset),base + Swap32(header.textureRemapTableOffset));
+    ConvertRaw16Block(in, out,base + Swap32(header.textureRemapTableOffset), base + Swap32(header.tevOrderInfoOffset));
+    CopyRawBlock(in, out,base + Swap32(header.tevOrderInfoOffset), base + Swap32(header.tevColorOffset));
+    ConvertRaw16Block(in, out,base + Swap32(header.tevColorOffset), base + Swap32(header.numTevStagesOffset));
+    CopyRawBlock(in, out,base + Swap32(header.numTevStagesOffset), base + Swap32(header.nbtScaleOffset) + 4);
+    ConvertRaw32Block(in, out,base + Swap32(header.nbtScaleOffset) + 4,base +Swap32(header.sectionSize));
+}
 }
 
 void ConvertMDL3Header(MDL3Header& header) {
@@ -847,6 +1034,8 @@ MDL3Header header;
 in.read(reinterpret_cast<char*>(&header), sizeof(header));
 ConvertMDL3Header(header);
 out.write(reinterpret_cast<char*>(&header), sizeof(header));
+if (isLE == false)
+{
 in.seekg(base + header.packetOffset, std::ios::beg);
     uint32_t offset;
     in.read(reinterpret_cast<char*>(&offset), 4);
@@ -868,6 +1057,19 @@ CopyRawBlock(in, out,in.tellg(), base + header.sectionSize);
 else
 {
     CopyRawBlock(in, out,base + header.stringTableOffset, base + header.sectionSize);
+}
+}
+else
+{
+    in.seekg(base + Swap32(header.packetOffset), std::ios::beg);
+    uint32_t offset;
+    in.read(reinterpret_cast<char*>(&offset), 4);
+    in.seekg(base + Swap32(header.packetOffset) + offset, std::ios::beg);
+ConvertRaw32Block(in, out, base + Swap32(header.packetOffset),base + Swap32(header.packetOffset) + offset);
+CopyRawBlock(in, out,base + Swap32(header.packetOffset) + offset, base + Swap32(header.subPacketLocationOffset));
+ConvertRaw16Block(in, out,base + Swap32(header.subPacketLocationOffset),base + Swap32(header.matrixIndexOffset));
+ConvertRaw32Block(in, out,base + Swap32(header.matrixIndexOffset), base + Swap32(header.indexesOffset));
+    CopyRawBlock(in, out,base + Swap32(header.stringTableOffset), base + Swap32(header.sectionSize));
 }
 }
 
@@ -898,6 +1100,8 @@ std::reverse(header.magic, header.magic + 4);
     header.textureHeaderOffset = Swap32(header.textureHeaderOffset);
     header.stringTableOffset   = Swap32(header.stringTableOffset);
 out.write(reinterpret_cast<char*>(&header), sizeof(header));
+if (isLE == false)
+{
 ConvertTexHeader(in, out, base +header.textureHeaderOffset,header.textureCount);
 CopyRawBlock(in, out,in.tellg(), base + header.stringTableOffset);
 in.seekg(base + header.stringTableOffset + 6, std::ios::beg);
@@ -908,16 +1112,35 @@ in.seekg(base + header.stringTableOffset + 6, std::ios::beg);
     ConvertRaw16Block(in, out, base + header.stringTableOffset, stringTableStart);
     CopyRawBlock(in, out, stringTableStart, base +header.sectionSize);
 }
+else
+{
+    ConvertTexHeader(in, out, base +Swap32(header.textureHeaderOffset),Swap16(header.textureCount));
+CopyRawBlock(in, out,in.tellg(), base + Swap32(header.stringTableOffset));
+in.seekg(base + Swap32(header.stringTableOffset) + 6, std::ios::beg);
+    uint16_t offset;
+    in.read(reinterpret_cast<char*>(&offset), 2);
+    uint32_t stringTableStart = base + Swap32(header.stringTableOffset) + offset;
+    ConvertRaw16Block(in, out, base + Swap32(header.stringTableOffset), stringTableStart);
+    CopyRawBlock(in, out, stringTableStart, base +Swap32(header.sectionSize));
+}
+}
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        std::cerr << "Usage: bdlEndians.exe <input.bdl> <output.bdl>\n";
-        return 1;
-    }
 
     std::string inputPath  = argv[1];
-    std::string outputPath = argv[2];
-
+    std::string  outputPath;
+    if (!argv[2])
+    {
+outputPath = inputPath + "_out.bdl";
+    }
+    else
+{
+outputPath = argv[2];
+}
+if (argc < 2) {
+        std::cerr << "Usage: bdlEndians.exe <input.bdl> (output.bdl)\n";
+        return 1;
+    }
     std::ifstream in(inputPath, std::ios::binary);
     std::ofstream out(outputPath, std::ios::binary);
 
@@ -941,31 +1164,35 @@ int main(int argc, char* argv[]) {
         in.seekg(-4, std::ios::cur);
 
         std::string magicStr(magic, 4);
-        if (magicStr == "INF1") {
+        if (magicStr == "1FNI") {
+            isLE = true;
             ConvertINF1(in, out);
         }
-        else if (magicStr == "VTX1") {
+        else if (magicStr == "INF1") {
+            ConvertINF1(in, out);
+        }
+        else if (magicStr == "VTX1" || magicStr == "1XTV") {
             ConvertVTX1(in, out);
         }
-        else if (magicStr == "EVP1") {
+        else if (magicStr == "EVP1" || magicStr == "1PVE") {
     ConvertEVP1(in, out);
 }
-else if (magicStr == "DRW1") {
+else if (magicStr == "DRW1" || magicStr == "1WRD") {
     ConvertDRW1(in, out);
 }
-else if (magicStr == "JNT1") {
+else if (magicStr == "JNT1" || magicStr == "1TNJ") {
     ConvertJNT1(in, out);
 }
-else if (magicStr == "SHP1") {
+else if (magicStr == "SHP1"|| magicStr == "1PHS") {
     ConvertSHP1(in, out);
 }
-else if (magicStr == "MAT3") {
+else if (magicStr == "MAT3"|| magicStr == "3TAM") {
     ConvertMAT3(in, out);
 }
-else if (magicStr == "MDL3") {
+else if (magicStr == "MDL3"|| magicStr == "3LDM") {
     ConvertMDL3(in, out);
 }
-else if (magicStr == "TEX1") {
+else if (magicStr == "TEX1"|| magicStr == "1XET") {
     ConvertTEX1(in, out);
 }
 else {
