@@ -535,7 +535,33 @@ void ConvertEVP1WeightTable(std::ifstream& in, std::ofstream& out, uint32_t star
         out.write(reinterpret_cast<char*>(&swapped), 4);
     }
 }
+void CopyRawBlock(std::ifstream& in, std::ofstream& out, uint32_t offset, uint32_t endOffset) {
+    const size_t bufferSize = 4096;
+    char buffer[bufferSize];
 
+    in.seekg(offset);
+    out.seekp(offset);
+
+    uint32_t remaining = endOffset - offset;
+    while (remaining > 0) {
+        size_t chunk = std::min(static_cast<uint32_t>(bufferSize), remaining);
+        in.read(buffer, chunk);
+        out.write(buffer, chunk);
+        remaining -= chunk;
+    }
+}
+void ConvertRaw16Block(std::ifstream& in, std::ofstream& out, uint32_t offset, uint32_t endOffset) {
+    in.seekg(offset);
+    out.seekp(offset);
+
+    uint32_t count = (endOffset - offset) / 2;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint16_t value;
+        in.read(reinterpret_cast<char*>(&value), sizeof(uint16_t));
+        value = Swap16(value);
+        out.write(reinterpret_cast<char*>(&value), sizeof(uint16_t));
+    }
+}
 void ConvertEVP1(std::ifstream& in, std::ofstream& out) {
     uint32_t base = static_cast<uint32_t>(in.tellg());
     EVP1Header header;
@@ -552,9 +578,9 @@ void ConvertEVP1(std::ifstream& in, std::ofstream& out) {
     out.write(reinterpret_cast<char*>(&header), sizeof(header));
     if(isLE==false)
     {
-ConvertEVP1JointCountTable(in, out, base + header.jointCountOffset, base + header.indexTableOffset);
+CopyRawBlock(in, out, base + header.jointCountOffset, base + header.indexTableOffset);
 
-ConvertEVP1JointCountTable(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
+ConvertRaw16Block(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
 
 ConvertEVP1WeightTable(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
 
@@ -562,9 +588,9 @@ ConvertEVP1WeightTable(in, out, header.inverseBindOffset + base,base + header.si
     }
     else
     {
-        ConvertEVP1JointCountTable(in, out, base + Swap32(header.jointCountOffset), base + Swap32(header.indexTableOffset));
+        CopyRawBlock(in, out, base + Swap32(header.jointCountOffset), base + Swap32(header.indexTableOffset));
 
-ConvertEVP1JointCountTable(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
+ConvertRaw16Block(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
 
 ConvertEVP1WeightTable(in, out, Swap32(header.weightTableOffset) + base,Swap32(header.inverseBindOffset) + base);
 
@@ -756,34 +782,6 @@ void ConvertShapeData(std::ifstream& in, std::ofstream& out, uint32_t offset, ui
         shape.boundingBoxMaxZ2 = Swap32(shape.boundingBoxMaxZ2);
 
         out.write(reinterpret_cast<char*>(&shape), sizeof(ShapeData));
-    }
-}
-
-void ConvertRaw16Block(std::ifstream& in, std::ofstream& out, uint32_t offset, uint32_t endOffset) {
-    in.seekg(offset);
-    out.seekp(offset);
-
-    uint32_t count = (endOffset - offset) / 2;
-    for (uint32_t i = 0; i < count; ++i) {
-        uint16_t value;
-        in.read(reinterpret_cast<char*>(&value), sizeof(uint16_t));
-        value = Swap16(value);
-        out.write(reinterpret_cast<char*>(&value), sizeof(uint16_t));
-    }
-}
-void CopyRawBlock(std::ifstream& in, std::ofstream& out, uint32_t offset, uint32_t endOffset) {
-    const size_t bufferSize = 4096;
-    char buffer[bufferSize];
-
-    in.seekg(offset);
-    out.seekp(offset);
-
-    uint32_t remaining = endOffset - offset;
-    while (remaining > 0) {
-        size_t chunk = std::min(static_cast<uint32_t>(bufferSize), remaining);
-        in.read(buffer, chunk);
-        out.write(buffer, chunk);
-        remaining -= chunk;
     }
 }
 
