@@ -1,2 +1,4 @@
 # bdlEndians
-GC/Wiii bdl to SMG1+2 Switch bdl tool
+GC/WiiiのbdlモデルをSwiitch版マリギャラのbdlに変換するツール。
+
+## このツールは80％AIによって書かれましたが、最終的には人間の手によって手直しされました。
