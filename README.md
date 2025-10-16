@@ -6,5 +6,5 @@ GC/WiiiのbdlモデルをSwiitch版マリギャラのbdlに変換するツール
 ::コンパイル方法::
 
 MinGWのg++(9.2.0でないといけませんよ)をインストールします。
-bdlEndians.cpppがあるディレクトリで、"g++ bdlEndians.cpp -std=c++17"と打ち込む。
+bdlEndians.cppがあるディレクトリで、"g++ bdlEndians.cpp -std=c++17"と打ち込む。
 a.exeが出現すれば成功です。
