@@ -1,5 +1,5 @@
 # bdlEndians
-GC/WiiiのbdlモデルをSwiitch版マリギャラのbdlに変換するツール。
+GC/WiiiのbdlモデルをSwiitch版マリギャラのbdlに変換するツール。その逆も可能。
 
 **このツールは80％AIによって書かれましたが、最終的には人間の手によって手直しされました。**
 
