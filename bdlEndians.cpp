@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 bool isLE = false;
+bool isVanillaBdl = false;
 uint32_t evp1Address = 0;
 #pragma pack(push, 1)
 struct BDLHeader {
@@ -583,7 +584,8 @@ CopyRawBlock(in, out, base + header.jointCountOffset, base + header.indexTableOf
 ConvertRaw16Block(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
 
 ConvertRaw32Block(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
-
+if(isVanillaBdl)
+{
 for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
     uint32_t offset = base + header.inverseBindOffset + i * sizeof(float) * 12;
     in.seekg(offset, std::ios::beg);
@@ -596,6 +598,23 @@ for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
 
     out.seekp(offset, std::ios::beg);
     out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
+}
+}
+else
+{
+for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
+    uint32_t offset = base + header.inverseBindOffset + i * sizeof(float) * 12;
+    in.seekg(offset, std::ios::beg);
+    uint32_t matrix[12];
+    in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
+
+    for (int j = 0; j < 12; ++j) {
+        matrix[j] = Swap32(matrix[j]);
+    }
+
+    out.seekp(offset, std::ios::beg);
+    out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
+}
 }
 CopyRawBlock(in, out, in.tellg(),base + header.size);
     }
@@ -1073,15 +1092,7 @@ ConvertRaw32Block(in, out,base + header.matrixIndexOffset, base + header.indexes
 in.seekg(base + header.stringTableOffset + 4);
 in.read(reinterpret_cast<char*>(&value), sizeof(uint8_t));
 in.seekg(base + header.stringTableOffset + value);
-if (value != 0x64)
-{
-ConvertRaw16Block(in, out,base + header.stringTableOffset,in.tellg());
-CopyRawBlock(in, out,in.tellg(), base + header.sectionSize);
-}
-else
-{
     CopyRawBlock(in, out,base + header.stringTableOffset, base + header.sectionSize);
-}
 }
 else
 {
@@ -1181,7 +1192,15 @@ if (argc < 2) {
     char padding[8];
     in.read(padding, 8);
     out.write(padding, 8);
-
+in.seekg(16, std::ios::beg);
+char ch[4];
+in.read(ch, 4);
+std::string magicStr1(ch, 4);
+if (magicStr1 == "SVR3")
+{
+isVanillaBdl = true;
+}
+in.seekg(32, std::ios::beg);
     while (in.peek() != EOF) {
         char magic[4];
         in.read(magic, 4);
