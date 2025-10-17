@@ -582,9 +582,22 @@ CopyRawBlock(in, out, base + header.jointCountOffset, base + header.indexTableOf
 
 ConvertRaw16Block(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
 
-ConvertEVP1WeightTable(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
+ConvertRaw32Block(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
 
-ConvertEVP1WeightTable(in, out, header.inverseBindOffset + base,base + header.size);
+for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
+    uint32_t offset = base + header.inverseBindOffset + i * sizeof(float) * 12;
+    in.seekg(offset, std::ios::beg);
+    uint32_t matrix[12];
+    in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
+
+    for (int j = 0; j < 12; ++j) {
+        matrix[j] = Swap32(matrix[j]);
+    }
+
+    out.seekp(offset, std::ios::beg);
+    out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
+}
+CopyRawBlock(in, out, in.tellg(),base + header.size);
     }
     else
     {
@@ -592,9 +605,22 @@ ConvertEVP1WeightTable(in, out, header.inverseBindOffset + base,base + header.si
 
 ConvertRaw16Block(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
 
-ConvertEVP1WeightTable(in, out, Swap32(header.weightTableOffset) + base,Swap32(header.inverseBindOffset) + base);
+ConvertRaw32Block(in, out, Swap32(header.weightTableOffset) + base,Swap32(header.inverseBindOffset) + base);
 
-ConvertEVP1WeightTable(in, out, Swap32(header.inverseBindOffset) + base,base + Swap32(header.size));
+for (uint16_t i = 0; i < Swap16(header.matrixCount) * 2 + 1; i++) {
+    uint32_t offset = base + Swap32(header.inverseBindOffset) + i * sizeof(float) * 12;
+    in.seekg(offset, std::ios::beg);
+    uint32_t matrix[12];
+    in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
+
+    for (int j = 0; j < 12; ++j) {
+        matrix[j] = Swap32(matrix[j]);
+    }
+
+    out.seekp(offset, std::ios::beg);
+    out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
+}
+CopyRawBlock(in, out, in.tellg(),base + Swap32(header.size));
         
     }
 }
