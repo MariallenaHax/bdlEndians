@@ -6,6 +6,7 @@
 bool isLE = false;
 bool isVanillaBdl = false;
 uint32_t evp1Address = 0;
+int jointCounts = 0;
 #pragma pack(push, 1)
 struct BDLHeader {
     char magic[4];     
@@ -515,6 +516,15 @@ ConvertTexDataSectionsLE(in, out, vtx1, base, sectionEnd);
 
 }
 
+void readJointCounts(std::ifstream& in, std::ofstream& out, uint32_t start, uint32_t stop) {
+    for (uint32_t pos = start; pos < stop; pos += 1) {
+        in.seekg(pos, std::ios::beg);
+        uint8_t val;
+        in.read(reinterpret_cast<char*>(&val), 1);
+        jointCounts += val;
+    }
+}
+
 void ConvertEVP1JointCountTable(std::ifstream& in, std::ofstream& out, uint32_t start, uint32_t stop) {
     for (uint32_t pos = start; pos < stop; pos += 2) {
         in.seekg(pos, std::ios::beg);
@@ -580,43 +590,24 @@ void ConvertEVP1(std::ifstream& in, std::ofstream& out) {
     if(isLE==false)
     {
 CopyRawBlock(in, out, base + header.jointCountOffset, base + header.indexTableOffset);
-
 ConvertRaw16Block(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
-
 ConvertRaw32Block(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
-if(isVanillaBdl)
-{
-for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
-    uint32_t offset = base + header.inverseBindOffset + i * sizeof(float) * 12;
+uint32_t matrixStart = base + header.inverseBindOffset;
+uint32_t matrixCount = (header.size - header.inverseBindOffset) / 48;
+uint32_t matrixEnd = matrixStart + matrixCount * 48;
+for (uint32_t i = 0; i < matrixCount; i++) {
+    uint32_t offset = matrixStart + i * 48;
     in.seekg(offset, std::ios::beg);
     uint32_t matrix[12];
     in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
-
-    for (int j = 0; j < 12; ++j) {
-        matrix[j] = Swap32(matrix[j]);
-    }
-
+        for (int j = 0; j < 12; j++) {
+            matrix[j] = Swap32(matrix[j]);
+        }
     out.seekp(offset, std::ios::beg);
     out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
 }
-}
-else
-{
-for (uint16_t i = 0; i < header.matrixCount * 2 + 1; i++) {
-    uint32_t offset = base + header.inverseBindOffset + i * sizeof(float) * 12;
-    in.seekg(offset, std::ios::beg);
-    uint32_t matrix[12];
-    in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
 
-    for (int j = 0; j < 12; ++j) {
-        matrix[j] = Swap32(matrix[j]);
-    }
-
-    out.seekp(offset, std::ios::beg);
-    out.write(reinterpret_cast<char*>(matrix), sizeof(matrix));
-}
-}
-CopyRawBlock(in, out, in.tellg(),base + header.size);
+CopyRawBlock(in, out, matrixEnd,base + header.size);
     }
     else
     {
@@ -625,14 +616,15 @@ CopyRawBlock(in, out, in.tellg(),base + header.size);
 ConvertRaw16Block(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
 
 ConvertRaw32Block(in, out, Swap32(header.weightTableOffset) + base,Swap32(header.inverseBindOffset) + base);
-
-for (uint16_t i = 0; i < Swap16(header.matrixCount) * 2 + 1; i++) {
-    uint32_t offset = base + Swap32(header.inverseBindOffset) + i * sizeof(float) * 12;
-    in.seekg(offset, std::ios::beg);
+uint32_t matrixStart = base + Swap32(header.inverseBindOffset);
+uint32_t matrixCount = (Swap32(header.size) - Swap32(header.inverseBindOffset)) / (12 * sizeof(float));
+for (uint32_t i = 0; i < matrixCount; i++) {
     uint32_t matrix[12];
+    uint32_t offset = base + Swap32(header.inverseBindOffset) + i * 12 * 4;
+    in.seekg(offset, std::ios::beg);
     in.read(reinterpret_cast<char*>(matrix), sizeof(matrix));
 
-    for (int j = 0; j < 12; ++j) {
+    for (int j = 0; j < 12; j++) {
         matrix[j] = Swap32(matrix[j]);
     }
 
