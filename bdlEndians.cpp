@@ -461,14 +461,14 @@ void ConvertTexDataSectionsYoshLE(std::ifstream& in, std::ofstream& out, const V
             }
         }
 
-        for (uint32_t pos = start; pos < stop; pos += 4) {
+        for (uint32_t pos = start; pos < stop; pos += 2) {
             in.seekg(pos, std::ios::beg);
-            uint32_t val;
-            in.read(reinterpret_cast<char*>(&val), 4);
-            uint32_t swapped = Swap32(val);
+            uint16_t val;
+            in.read(reinterpret_cast<char*>(&val), 2);
+            uint16_t swapped = Swap32(val);
 
             out.seekp(pos, std::ios::beg);
-            out.write(reinterpret_cast<char*>(&swapped), 4);
+            out.write(reinterpret_cast<char*>(&swapped), 2);
         }
     }
 }
