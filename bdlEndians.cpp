@@ -589,6 +589,11 @@ void ConvertEVP1(std::ifstream& in, std::ofstream& out) {
     out.write(reinterpret_cast<char*>(&header), sizeof(header));
     if(isLE==false)
     {
+        if (header.jointCountOffset == 0)        
+        {
+            CopyRawBlock(in, out, in.tellg(), in.tellg() + 0x04);
+            return;
+        }
 CopyRawBlock(in, out, base + header.jointCountOffset, base + header.indexTableOffset);
 ConvertRaw16Block(in, out, base + header.indexTableOffset, header.weightTableOffset + base);
 ConvertRaw32Block(in, out, header.weightTableOffset + base,header.inverseBindOffset + base);
@@ -611,6 +616,11 @@ CopyRawBlock(in, out, matrixEnd,base + header.size);
     }
     else
     {
+        if (Swap32(header.jointCountOffset) == 0) 
+        {
+            CopyRawBlock(in, out, in.tellg(), in.tellg() + 0x04);
+            return;
+        }
         CopyRawBlock(in, out, base + Swap32(header.jointCountOffset), base + Swap32(header.indexTableOffset));
 
 ConvertRaw16Block(in, out, base + Swap32(header.indexTableOffset), Swap32(header.weightTableOffset) + base);
@@ -1022,6 +1032,8 @@ if (isLE == false)
     CopyRawBlock(in, out, stringTableStart, base +header.indirectInfoOffset);
     ConvertMaterialEntries2(in, out, base +header.indirectInfoOffset, header.materialCount);
     ConvertMaterialEntries4(in, out, base +header.cullModeOffset,header.materialCount);
+    in.seekg(base + header.cullModeOffset);
+    ConvertRaw32Block(in, out,base + header.cullModeOffset,base +header.materialColorOffset);
     CopyRawBlock(in, out,base + header.materialColorOffset, base +header.texMatrixOffset);
     ConvertMaterialEntries3(in, out, base +header.texMatrixOffset,base + header.textureRemapTableOffset);
     ConvertRaw16Block(in, out,base + header.textureRemapTableOffset, base + header.tevOrderInfoOffset);
@@ -1043,6 +1055,8 @@ else
     CopyRawBlock(in, out, stringTableStart, base +Swap32(header.indirectInfoOffset));
     ConvertMaterialEntries2(in, out, base +Swap32(header.indirectInfoOffset), Swap16(header.materialCount));
     ConvertMaterialEntries4(in, out, base +Swap32(header.cullModeOffset),Swap16(header.materialCount));
+    in.seekg(base + Swap32(header.cullModeOffset));
+    ConvertRaw32Block(in, out,base + Swap32(header.cullModeOffset),base +Swap32(header.materialColorOffset));
     CopyRawBlock(in, out,base + Swap32(header.materialColorOffset), base +Swap32(header.texMatrixOffset));
     ConvertMaterialEntries3(in, out, base +Swap32(header.texMatrixOffset),base + Swap32(header.textureRemapTableOffset));
     ConvertRaw16Block(in, out,base + Swap32(header.textureRemapTableOffset), base + Swap32(header.tevOrderInfoOffset));
