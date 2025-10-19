@@ -360,6 +360,29 @@ void ConvertVertexData(std::ifstream& in, std::ofstream& out, std::vector<uint32
     }
 }
 
+void ConvertVertexDataYosh(std::ifstream& in, std::ofstream& out, std::vector<uint32_t> offsets, uint32_t base, uint32_t end) {
+    offsets.erase(std::remove_if(offsets.begin(), offsets.end(), [](uint32_t off) { return off == 0; }), offsets.end());
+    std::sort(offsets.begin(), offsets.end());
+
+    std::vector<std::pair<uint32_t, uint32_t>> ranges;
+    for (size_t i = 0; i < offsets.size(); ++i) {
+        uint32_t start = base + offsets[i];
+        uint32_t next  = (i + 1 < offsets.size()) ? base + offsets[i + 1] : end;
+        if (start >= next) continue;
+        ranges.emplace_back(start, next);
+    }
+
+    for (auto [start, stop] : ranges) {
+        in.seekg(start, std::ios::beg);
+        for (uint32_t pos = start; pos < stop; pos += 4) {
+            uint32_t val;
+            in.read(reinterpret_cast<char*>(&val), 4);
+            val = Swap32(val);
+            out.write(reinterpret_cast<char*>(&val), 4);
+        }
+    }
+}
+
 void CopyColorData(std::ifstream& in, std::ofstream& out, uint32_t base, uint32_t sectionEnd, const uint32_t colOffsets[2]) {
     for (int i = 0; i < 2; ++i) {
         if (colOffsets[i] != 0) {
@@ -396,6 +419,59 @@ out.seekp(start, std::ios::beg);
     }
 }
 
+void ConvertTexDataSectionsYosh(std::ifstream& in, std::ofstream& out, const VTX1Header& vtx1, uint32_t base, uint32_t sectionEnd) {
+    for (int i = 0; i < 8; ++i) {
+        if (vtx1.texDataOffset[i] == 0)
+            continue;
+
+        uint32_t start = base + vtx1.texDataOffset[i];
+
+        uint32_t stop = sectionEnd;
+        for (int j = i + 1; j < 8; ++j) {
+            if (vtx1.texDataOffset[j] != 0) {
+                stop = std::min(stop, base + vtx1.texDataOffset[j]);
+                break;
+            }
+        }
+
+        for (uint32_t pos = start; pos < stop; pos += 4) {
+            in.seekg(pos, std::ios::beg);
+            uint32_t val;
+            in.read(reinterpret_cast<char*>(&val), 4);
+            uint32_t swapped = Swap32(val);
+
+            out.seekp(pos, std::ios::beg);
+            out.write(reinterpret_cast<char*>(&swapped), 4);
+        }
+    }
+}
+
+void ConvertTexDataSectionsYoshLE(std::ifstream& in, std::ofstream& out, const VTX1Header& vtx1, uint32_t base, uint32_t sectionEnd) {
+    for (int i = 0; i < 8; ++i) {
+        if (Swap32(vtx1.texDataOffset[i]) == 0)
+            continue;
+
+        uint32_t start = base + Swap32(vtx1.texDataOffset[i]);
+
+        uint32_t stop = sectionEnd;
+        for (int j = i + 1; j < 8; ++j) {
+            if (Swap32(vtx1.texDataOffset[j]) != 0) {
+                stop = std::min(stop, base + Swap32(vtx1.texDataOffset[j]));
+                break;
+            }
+        }
+
+        for (uint32_t pos = start; pos < stop; pos += 4) {
+            in.seekg(pos, std::ios::beg);
+            uint32_t val;
+            in.read(reinterpret_cast<char*>(&val), 4);
+            uint32_t swapped = Swap32(val);
+
+            out.seekp(pos, std::ios::beg);
+            out.write(reinterpret_cast<char*>(&swapped), 4);
+        }
+    }
+}
 
 void ConvertTexDataSections(std::ifstream& in, std::ofstream& out, const VTX1Header& vtx1, uint32_t base, uint32_t sectionEnd) {
     for (int i = 0; i < 8; ++i) {
@@ -484,11 +560,24 @@ void ConvertVTX1(std::ifstream& in, std::ofstream& out) {
         vtx1.texDataOffset[3], vtx1.texDataOffset[4], vtx1.texDataOffset[5],
         vtx1.texDataOffset[6], vtx1.texDataOffset[7]
     };
+if (isVanillaBdl)
+{
     ConvertVertexData(in, out, vertexOffsets, base, colStart);
+}
+else
+{
+    ConvertVertexDataYosh(in, out, vertexOffsets, base, colStart);
+}
 
 CopyColorData(in, out, base, sectionEnd, vtx1.colDataOffset);
-
+if (isVanillaBdl)
+{
 ConvertTexDataSections(in, out, vtx1, base, sectionEnd);
+}
+else
+{
+    ConvertTexDataSectionsYosh(in, out, vtx1, base, sectionEnd);
+}
     }
     else
     {
@@ -507,11 +596,24 @@ ConvertTexDataSections(in, out, vtx1, base, sectionEnd);
         Swap32(vtx1.texDataOffset[3]), Swap32(vtx1.texDataOffset[4]), Swap32(vtx1.texDataOffset[5]),
         Swap32(vtx1.texDataOffset[6]), Swap32(vtx1.texDataOffset[7])
     };
+    if (isVanillaBdl)
+{
     ConvertVertexData(in, out, vertexOffsets, base, colStart);
+}
+else
+{
+    ConvertVertexDataYosh(in, out, vertexOffsets, base, colStart);
+}
 
 CopyColorDataLE(in, out, base, sectionEnd,vtx1.colDataOffset);
-
+if (isVanillaBdl)
+{
 ConvertTexDataSectionsLE(in, out, vtx1, base, sectionEnd);
+}
+else
+{
+    ConvertTexDataSectionsYoshLE(in, out, vtx1, base, sectionEnd);
+}
     }
 
 }
