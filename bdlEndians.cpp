@@ -1197,7 +1197,10 @@ in.seekg(base + header.packetOffset, std::ios::beg);
 ConvertRaw32Block(in, out, base + header.packetOffset,base + header.packetOffset + offset);
 CopyRawBlock(in, out,base + header.packetOffset + offset, base + header.subPacketLocationOffset);
 ConvertRaw16Block(in, out,base + header.subPacketLocationOffset,base + header.matrixIndexOffset);
-    CopyRawBlock(in, out,base + header.matrixIndexOffset, base + header.sectionSize);
+ConvertRaw32Block(in, out, base + header.matrixIndexOffset,base + header.pixelEngineModesOffset);
+ConvertRaw16Block(in, out,base + header.pixelEngineModesOffset,base + header.indexesOffset);
+CopyRawBlock(in, out,base + header.indexesOffset, base + header.stringTableOffset);
+ConvertRaw16Block(in, out,base + header.stringTableOffset,base + header.sectionSize);
 }
 else
 {
@@ -1208,7 +1211,10 @@ else
 ConvertRaw32Block(in, out, base + Swap32(header.packetOffset),base + Swap32(header.packetOffset) + offset);
 CopyRawBlock(in, out,base + Swap32(header.packetOffset) + offset, base + Swap32(header.subPacketLocationOffset));
 ConvertRaw16Block(in, out,base + Swap32(header.subPacketLocationOffset),base + Swap32(header.matrixIndexOffset));
-    CopyRawBlock(in, out,base + Swap32(header.matrixIndexOffset), base + Swap32(header.sectionSize));
+ConvertRaw32Block(in, out, base + Swap32(header.matrixIndexOffset),base + Swap32(header.pixelEngineModesOffset));
+ConvertRaw16Block(in, out, base + Swap32(header.pixelEngineModesOffset),base + Swap32(header.indexesOffset));
+    CopyRawBlock(in, out,base + Swap32(header.indexesOffset), base + Swap32(header.stringTableOffset));
+    ConvertRaw16Block(in, out, base + Swap32(header.stringTableOffset),base + Swap32(header.sectionSize));
 }
 }
 
