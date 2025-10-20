@@ -323,7 +323,14 @@ void ConvertAttributeTable(std::ifstream& in, std::ofstream& out, uint32_t start
         fmt.componentCount  = Swap32(fmt.componentCount);
         fmt.dataType        = Swap32(fmt.dataType);
         i++;
-        vtxDataTypes[i] = fmt.dataType;
+        if(isLE)
+        {
+vtxDataTypes[i] = Swap32(fmt.dataType);
+        }
+        else
+        {
+vtxDataTypes[i] = fmt.dataType;
+        }
         out.write(reinterpret_cast<char*>(&fmt), sizeof(fmt));
     }
 }
@@ -1135,8 +1142,8 @@ if (isLE == false)
     ConvertMaterialEntries3(in, out, base +header.texMatrixOffset,base + header.textureRemapTableOffset);
     ConvertRaw16Block(in, out,base + header.textureRemapTableOffset, base + header.tevOrderInfoOffset);
     CopyRawBlock(in, out,base + header.tevOrderInfoOffset, base + header.tevColorOffset);
-    ConvertRaw16Block(in, out,base + header.tevColorOffset, base + header.numTevStagesOffset);
-    CopyRawBlock(in, out,base + header.numTevStagesOffset, base + header.nbtScaleOffset + 4);
+    ConvertRaw16Block(in, out,base + header.tevColorOffset, base + header.tevKonstColorOffset);
+    CopyRawBlock(in, out,base + header.tevKonstColorOffset, base + header.nbtScaleOffset + 4);
     ConvertRaw32Block(in, out,base + header.nbtScaleOffset + 4,base +header.sectionSize);
 }
 else
@@ -1158,8 +1165,8 @@ else
     ConvertMaterialEntries3(in, out, base +Swap32(header.texMatrixOffset),base + Swap32(header.textureRemapTableOffset));
     ConvertRaw16Block(in, out,base + Swap32(header.textureRemapTableOffset), base + Swap32(header.tevOrderInfoOffset));
     CopyRawBlock(in, out,base + Swap32(header.tevOrderInfoOffset), base + Swap32(header.tevColorOffset));
-    ConvertRaw16Block(in, out,base + Swap32(header.tevColorOffset), base + Swap32(header.numTevStagesOffset));
-    CopyRawBlock(in, out,base + Swap32(header.numTevStagesOffset), base + Swap32(header.nbtScaleOffset) + 4);
+    ConvertRaw16Block(in, out,base + Swap32(header.tevColorOffset), base + Swap32(header.tevKonstColorOffset));
+    CopyRawBlock(in, out,base + Swap32(header.tevKonstColorOffset), base + Swap32(header.nbtScaleOffset) + 4);
     ConvertRaw32Block(in, out,base + Swap32(header.nbtScaleOffset) + 4,base +Swap32(header.sectionSize));
 }
 }
@@ -1190,12 +1197,7 @@ in.seekg(base + header.packetOffset, std::ios::beg);
 ConvertRaw32Block(in, out, base + header.packetOffset,base + header.packetOffset + offset);
 CopyRawBlock(in, out,base + header.packetOffset + offset, base + header.subPacketLocationOffset);
 ConvertRaw16Block(in, out,base + header.subPacketLocationOffset,base + header.matrixIndexOffset);
-ConvertRaw32Block(in, out,base + header.matrixIndexOffset, base + header.indexesOffset);
-    uint8_t value;
-in.seekg(base + header.stringTableOffset + 4);
-in.read(reinterpret_cast<char*>(&value), sizeof(uint8_t));
-in.seekg(base + header.stringTableOffset + value);
-    CopyRawBlock(in, out,base + header.stringTableOffset, base + header.sectionSize);
+    CopyRawBlock(in, out,base + header.matrixIndexOffset, base + header.sectionSize);
 }
 else
 {
@@ -1206,8 +1208,7 @@ else
 ConvertRaw32Block(in, out, base + Swap32(header.packetOffset),base + Swap32(header.packetOffset) + offset);
 CopyRawBlock(in, out,base + Swap32(header.packetOffset) + offset, base + Swap32(header.subPacketLocationOffset));
 ConvertRaw16Block(in, out,base + Swap32(header.subPacketLocationOffset),base + Swap32(header.matrixIndexOffset));
-ConvertRaw32Block(in, out,base + Swap32(header.matrixIndexOffset), base + Swap32(header.indexesOffset));
-    CopyRawBlock(in, out,base + Swap32(header.stringTableOffset), base + Swap32(header.sectionSize));
+    CopyRawBlock(in, out,base + Swap32(header.matrixIndexOffset), base + Swap32(header.sectionSize));
 }
 }
 
