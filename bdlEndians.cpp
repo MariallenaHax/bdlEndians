@@ -1274,6 +1274,10 @@ int main(int argc, char* argv[]) {
 
     std::string inputPath  = argv[1];
     std::string  outputPath;
+    if (!argv[1]) {
+        std::cerr << "Usage: bdlEndians.exe <input.bdl> (output.bdl)\n";
+        return 1;
+    }
     if (!argv[2])
     {
 outputPath = inputPath + "_out.bdl";
@@ -1282,10 +1286,6 @@ outputPath = inputPath + "_out.bdl";
 {
 outputPath = argv[2];
 }
-if (argc < 2) {
-        std::cerr << "Usage: bdlEndians.exe <input.bdl> (output.bdl)\n";
-        return 1;
-    }
     std::ifstream in(inputPath, std::ios::binary);
     std::ofstream out(outputPath, std::ios::binary);
 
